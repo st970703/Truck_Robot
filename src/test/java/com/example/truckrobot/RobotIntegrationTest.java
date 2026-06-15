@@ -17,41 +17,47 @@ import static org.junit.jupiter.api.Assertions.*;
 @AutoConfigureTestRestTemplate
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 class RobotIntegrationTest {
+    private static final String PLACE_ENDPOINT = "/api/v1/place";
+    private static final String MOVE_ENDPOINT = "/api/v1/move";
+    private static final String LEFT_ENDPOINT = "/api/v1/left";
+    private static final String RESET_ENDPOINT = "/api/v1/reset";
+    private static final String REPORT_ENDPOINT = "/api/v1/report";
+
     @Autowired
     private TestRestTemplate rest;
 
     @Test
     void testMovingOnce() {
-        rest.postForEntity("/robot/command", "PLACE 0,0,NORTH", Void.class);
-        rest.postForEntity("/robot/command", "MOVE", Void.class);
+        rest.postForEntity(PLACE_ENDPOINT, new RobotController.PlaceRequest(0, 0, "NORTH"), Void.class);
+        rest.postForEntity(MOVE_ENDPOINT, null, Void.class);
 
         ResponseEntity<String> response =
-                rest.postForEntity("/robot/command", "REPORT", String.class);
+                rest.getForEntity(REPORT_ENDPOINT, String.class);
 
         assertEquals("0,1,NORTH", response.getBody());
     }
 
     @Test
     void testCanNotLeaveTabletop() {
-        rest.postForEntity("/robot/command", "PLACE 0,0,NORTH", Void.class);
-        rest.postForEntity("/robot/command", "LEFT", Void.class);
+        rest.postForEntity(PLACE_ENDPOINT, new RobotController.PlaceRequest(0, 0, "NORTH"), Void.class);
+        rest.postForEntity(LEFT_ENDPOINT, null, Void.class);
 
         ResponseEntity<String> response =
-                rest.postForEntity("/robot/command", "REPORT", String.class);
+                rest.getForEntity(REPORT_ENDPOINT, String.class);
 
         assertEquals("0,0,WEST", response.getBody());
     }
 
     @Test
     void testMultipleMoves() {
-        rest.postForEntity("/robot/command", "PLACE 1,2,EAST", Void.class);
-        rest.postForEntity("/robot/command", "MOVE", Void.class);
-        rest.postForEntity("/robot/command", "MOVE", Void.class);
-        rest.postForEntity("/robot/command", "LEFT", Void.class);
-        rest.postForEntity("/robot/command", "MOVE", Void.class);
+        rest.postForEntity(PLACE_ENDPOINT, new RobotController.PlaceRequest(1, 2, "EAST"), Void.class);
+        rest.postForEntity(MOVE_ENDPOINT, null, Void.class);
+        rest.postForEntity(MOVE_ENDPOINT, null, Void.class);
+        rest.postForEntity(LEFT_ENDPOINT, null, Void.class);
+        rest.postForEntity(MOVE_ENDPOINT, null, Void.class);
 
         ResponseEntity<String> response =
-                rest.postForEntity("/robot/command", "REPORT", String.class);
+                rest.getForEntity(REPORT_ENDPOINT, String.class);
 
         assertEquals("3,3,NORTH", response.getBody());
     }
@@ -59,7 +65,18 @@ class RobotIntegrationTest {
     @Test
     void testRobotIsNeverPlaced() {
         ResponseEntity<String> response =
-                rest.postForEntity("/robot/command", "REPORT", String.class);
+                rest.getForEntity(REPORT_ENDPOINT, String.class);
+
+        assertEquals("ROBOT MISSING", response.getBody());
+    }
+
+    @Test
+    void testResetRemovesRobotPlacement() {
+        rest.postForEntity(PLACE_ENDPOINT, new RobotController.PlaceRequest(0, 0, "NORTH"), Void.class);
+        rest.postForEntity(RESET_ENDPOINT, null, Void.class);
+
+        ResponseEntity<String> response =
+                rest.getForEntity(REPORT_ENDPOINT, String.class);
 
         assertEquals("ROBOT MISSING", response.getBody());
     }
@@ -67,14 +84,14 @@ class RobotIntegrationTest {
     @Test
     void testCanNotGoBelowZeroY() {
         // Place robot at the southern edge facing SOUTH
-        rest.postForEntity("/robot/command", "PLACE 0,0,SOUTH", Void.class);
+        rest.postForEntity(PLACE_ENDPOINT, new RobotController.PlaceRequest(0, 0, "SOUTH"), Void.class);
 
         // Attempt to move off the table (should be ignored)
-        rest.postForEntity("/robot/command", "MOVE", Void.class);
+        rest.postForEntity(MOVE_ENDPOINT, null, Void.class);
 
         // Report position
         ResponseEntity<String> response =
-                rest.postForEntity("/robot/command", "REPORT", String.class);
+                rest.getForEntity(REPORT_ENDPOINT, String.class);
 
         // Robot must stay at y = 0
         assertEquals("0,0,SOUTH", response.getBody());
@@ -85,12 +102,12 @@ class RobotIntegrationTest {
      */
     @Test
     void testCanNotGoBeyondMaxX() {
-        rest.postForEntity("/robot/command", "PLACE 4,0,EAST", Void.class);
+        rest.postForEntity(PLACE_ENDPOINT, new RobotController.PlaceRequest(4, 0, "EAST"), Void.class);
 
-        rest.postForEntity("/robot/command", "MOVE", Void.class);
+        rest.postForEntity(MOVE_ENDPOINT, null, Void.class);
 
         ResponseEntity<String> response =
-                rest.postForEntity("/robot/command", "REPORT", String.class);
+                rest.getForEntity(REPORT_ENDPOINT, String.class);
 
         // Robot must stay within the table top
         assertEquals("4,0,EAST", response.getBody());
@@ -101,33 +118,33 @@ class RobotIntegrationTest {
      */
     @Test
     void testCanNotGoBeyondMaxY() {
-        rest.postForEntity("/robot/command", "PLACE 0,4,NORTH", Void.class);
+        rest.postForEntity(PLACE_ENDPOINT, new RobotController.PlaceRequest(0, 4, "NORTH"), Void.class);
 
-        rest.postForEntity("/robot/command", "MOVE", Void.class);
+        rest.postForEntity(MOVE_ENDPOINT, null, Void.class);
 
         ResponseEntity<String> response =
-                rest.postForEntity("/robot/command", "REPORT", String.class);
+                rest.getForEntity(REPORT_ENDPOINT, String.class);
 
         // Robot must stay within the table top
         assertEquals("0,4,NORTH", response.getBody());
     }
 
     /**
-     * The robot cannot be placed beyond the table top.
+     * The robot cannot be placed beyond the tabletop.
      */
     @ParameterizedTest
     @CsvSource(
         {
-            "PLACE 0,5,NORTH",
-            "PLACE 5,0,NORTH",
+            "0, 5, NORTH",
+            "5, 0, NORTH",
         }
     )
-    void testCanNotBePlacedBeyondTableTop(String command) {
-        rest.postForEntity("/robot/command", command, Void.class);
+    void testCanNotBePlacedBeyondTableTop(int x, int y, String direction) {
+        rest.postForEntity(PLACE_ENDPOINT, new RobotController.PlaceRequest(x, y, direction), Void.class);
 
         // Report position
         ResponseEntity<String> response =
-                rest.postForEntity("/robot/command", "REPORT", String.class);
+                rest.getForEntity(REPORT_ENDPOINT, String.class);
 
         assertEquals("ROBOT MISSING", response.getBody());
     }

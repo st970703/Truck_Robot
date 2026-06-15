@@ -55,6 +55,12 @@ public class Robot {
         return true;
     }
 
+    public void reset() {
+        this.position = null;
+        this.facing = null;
+        this.placed = false;
+    }
+
     public String report() {
         if (!placed) return "ROBOT MISSING";
         return position.x() + "," + position.y() + "," + facing.name();
