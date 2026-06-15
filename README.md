@@ -21,6 +21,9 @@ Use Gradle:
 ./gradlew bootRun
 ```
 
+## REST API
+Documentation at: `/docs/REST_API.md`
+
 ## Testing
 - Manual testing:\
 Run the Spring server and use the Postman application to send HTTP requests.
