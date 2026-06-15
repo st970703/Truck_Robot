@@ -6,7 +6,7 @@ import com.example.truckrobot.model.Robot;
 import java.util.Optional;
 
 /**
- * Simple parser+executor for textual commands. It mutates the provided Robot instance.
+ * Simple parser + executor for textual commands. It mutates the provided Robot instance.
  * Invalid commands are ignored. REPORT returns a non-empty Optional with the output.
  */
 public final class CommandParser {
