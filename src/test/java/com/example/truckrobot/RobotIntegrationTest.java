@@ -20,12 +20,30 @@ class RobotIntegrationTest {
     private static final String PLACE_ENDPOINT = "/api/v1/place";
     private static final String MOVE_ENDPOINT = "/api/v1/move";
     private static final String LEFT_ENDPOINT = "/api/v1/left";
+    private static final String RIGHT_ENDPOINT = "/api/v1/right";
     private static final String RESET_ENDPOINT = "/api/v1/reset";
     private static final String REPORT_ENDPOINT = "/api/v1/report";
 
     @Autowired
     private TestRestTemplate rest;
 
+
+    /**
+     * Test a robot can be placed on the table top.
+     */
+    @Test
+    void testPlace() {
+        rest.postForEntity(PLACE_ENDPOINT, new RobotController.PlaceRequest(0, 0, "NORTH"), Void.class);
+
+        ResponseEntity<String> response =
+                rest.getForEntity(REPORT_ENDPOINT, String.class);
+
+        assertEquals("0,0,NORTH", response.getBody());
+    }
+
+    /**
+     * Test moving once.
+     */
     @Test
     void testMovingOnce() {
         rest.postForEntity(PLACE_ENDPOINT, new RobotController.PlaceRequest(0, 0, "NORTH"), Void.class);
@@ -37,8 +55,12 @@ class RobotIntegrationTest {
         assertEquals("0,1,NORTH", response.getBody());
     }
 
+
+    /**
+     * Test a left turn.
+     */
     @Test
-    void testCanNotLeaveTabletop() {
+    void testLeftTurn() {
         rest.postForEntity(PLACE_ENDPOINT, new RobotController.PlaceRequest(0, 0, "NORTH"), Void.class);
         rest.postForEntity(LEFT_ENDPOINT, null, Void.class);
 
@@ -48,6 +70,23 @@ class RobotIntegrationTest {
         assertEquals("0,0,WEST", response.getBody());
     }
 
+    /**
+     * Test a right turn.
+     */
+    @Test
+    void testRightTurn() {
+        rest.postForEntity(PLACE_ENDPOINT, new RobotController.PlaceRequest(0, 0, "NORTH"), Void.class);
+        rest.postForEntity(RIGHT_ENDPOINT, null, Void.class);
+
+        ResponseEntity<String> response =
+                rest.getForEntity(REPORT_ENDPOINT, String.class);
+
+        assertEquals("0,0,EAST", response.getBody());
+    }
+
+    /**
+     * Test two moves, left turn, and a move.
+     */
     @Test
     void testMultipleMoves() {
         rest.postForEntity(PLACE_ENDPOINT, new RobotController.PlaceRequest(1, 2, "EAST"), Void.class);
@@ -62,6 +101,9 @@ class RobotIntegrationTest {
         assertEquals("3,3,NORTH", response.getBody());
     }
 
+    /**
+     * Test when the robot is never placed on the table top.
+     */
     @Test
     void testRobotIsNeverPlaced() {
         ResponseEntity<String> response =
@@ -70,6 +112,9 @@ class RobotIntegrationTest {
         assertEquals("ROBOT MISSING", response.getBody());
     }
 
+    /**
+     * Test when the robot state is reset.
+     */
     @Test
     void testResetRemovesRobotPlacement() {
         rest.postForEntity(PLACE_ENDPOINT, new RobotController.PlaceRequest(0, 0, "NORTH"), Void.class);
@@ -81,62 +126,42 @@ class RobotIntegrationTest {
         assertEquals("ROBOT MISSING", response.getBody());
     }
 
-    @Test
-    void testCanNotGoBelowZeroY() {
-        // Place robot at the southern edge facing SOUTH
-        rest.postForEntity(PLACE_ENDPOINT, new RobotController.PlaceRequest(0, 0, "SOUTH"), Void.class);
-
-        // Attempt to move off the table (should be ignored)
-        rest.postForEntity(MOVE_ENDPOINT, null, Void.class);
-
-        // Report position
-        ResponseEntity<String> response =
-                rest.getForEntity(REPORT_ENDPOINT, String.class);
-
-        // Robot must stay at y = 0
-        assertEquals("0,0,SOUTH", response.getBody());
-    }
-
     /**
-     * The robot cannot go outside the tabletop on the x-axis.
+     * The robot cannot go outside the tabletop.
      */
-    @Test
-    void testCanNotGoBeyondMaxX() {
-        rest.postForEntity(PLACE_ENDPOINT, new RobotController.PlaceRequest(4, 0, "EAST"), Void.class);
+    @ParameterizedTest
+    @CsvSource(
+        {
+            "0, 4, NORTH",
+            "0, 0, SOUTH",
+            "4, 0, EAST",
+            "0, 0, WEST",
+        }
+    )
+    void testMustStayOnTheTableTop(int x, int y, String direction) {
+        rest.postForEntity(PLACE_ENDPOINT, new RobotController.PlaceRequest(x, y, direction), Void.class);
 
         rest.postForEntity(MOVE_ENDPOINT, null, Void.class);
 
         ResponseEntity<String> response =
                 rest.getForEntity(REPORT_ENDPOINT, String.class);
-
-        // Robot must stay within the table top
-        assertEquals("4,0,EAST", response.getBody());
+        // Note the invalid moves are ignored. Robot must stay within the table top
+        String expected = String.format("%d,%d,%s", x, y, direction);
+        assertEquals(expected, response.getBody());
     }
 
     /**
-     * The robot cannot go outside the tabletop on the y-axis.
-     */
-    @Test
-    void testCanNotGoBeyondMaxY() {
-        rest.postForEntity(PLACE_ENDPOINT, new RobotController.PlaceRequest(0, 4, "NORTH"), Void.class);
-
-        rest.postForEntity(MOVE_ENDPOINT, null, Void.class);
-
-        ResponseEntity<String> response =
-                rest.getForEntity(REPORT_ENDPOINT, String.class);
-
-        // Robot must stay within the table top
-        assertEquals("0,4,NORTH", response.getBody());
-    }
-
-    /**
-     * The robot cannot be placed beyond the tabletop.
+     * The robot cannot be placed beyond the table top.
      */
     @ParameterizedTest
     @CsvSource(
         {
             "0, 5, NORTH",
             "5, 0, NORTH",
+            "5, 5, NORTH",
+            "-1, -1, NORTH",
+            "0, -1, NORTH",
+            "-1, 0, NORTH",
         }
     )
     void testCanNotBePlacedBeyondTableTop(int x, int y, String direction) {
